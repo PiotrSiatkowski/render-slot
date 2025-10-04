@@ -1,0 +1,71 @@
+{
+	"name": "render-slot",
+	"version": "0.1.0",
+	"description": "renderSlot",
+	"author": "Piotr Siatkowski <p.siatkowski@gmail.com>",
+	"license": "MIT",
+	"keywords": [
+		"render",
+		"slot",
+		"react",
+		"pattern",
+		"template",
+		"function",
+		"no-boilerplate",
+		"flexibility"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/PiotrSiatkowski/render-slot.git",
+		"web": "https://github.com/PiotrSiatkowski/render-slot"
+	},
+	"bugs": {
+		"url": "https://github.com/PiotrSiatkowski/render-slot/issues"
+	},
+	"sideEffects": false,
+	"type": "module",
+	"main": "dist/index.js",
+	"module": "dist/index.mjs",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist/**/*"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.mjs",
+			"module": "./dist/index.mjs",
+			"require": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "jest && tsup src/index.ts --format cjs,esm --dts --clean --sourcemap --minify",
+		"test": "jest"
+	},
+	"dependencies": {
+		"lodash.isfunction": "^3.0.9",
+		"lodash.isobject": "^3.0.2",
+		"lodash.isplainobject": "^4.0.6"
+	},
+	"peerDependencies": {
+		"react": "^18.0.0"
+	},
+	"devDependencies": {
+		"@testing-library/jest-dom": "^6.6.3",
+		"@testing-library/react": "^16.3.0",
+		"@types/jest": "^30.0.0",
+		"@types/react": "^19.1.8",
+		"@types/lodash.isfunction": "^3.0.9",
+		"@types/lodash.isobject": "^3.0.9",
+		"@types/lodash.isplainobject": "^4.0.9",
+		"jest": "^30.0.2",
+		"jest-environment-jsdom": "^30.0.2",
+		"prettier": "^3.5.3",
+		"react": "^18.0.0",
+		"react-dom": "^18.0.0",
+		"ts-jest": "^29.4.0",
+		"tsup": "^8.5.0",
+		"typescript": "5.8.3"
+	},
+	"private": false
+}

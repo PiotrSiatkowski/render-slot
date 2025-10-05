@@ -1,6 +1,6 @@
 {
 	"name": "render-slot",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"description": "renderSlot",
 	"author": "Piotr Siatkowski <p.siatkowski@gmail.com>",
 	"license": "MIT",
@@ -24,22 +24,19 @@
 	},
 	"sideEffects": false,
 	"type": "module",
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.mjs",
-	"types": "./dist/index.d.ts",
 	"files": [
 		"dist/**/*"
 	],
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"import": "./dist/index.mjs",
+			"import": "./dist/index.js",
 			"require": "./dist/index.cjs",
-			"default": "./dist/index.mjs"
+			"default": "./dist/index.js"
 		}
 	},
 	"scripts": {
-		"build": "jest && tsup src/index.ts --format cjs,esm --dts --clean --sourcemap --minify --out-extension esm:.mjs,cjs:.cjs",
+		"build": "jest && tsup src/index.ts --format esm,cjs --dts --clean --sourcemap --minify",
 		"test": "jest"
 	},
 	"dependencies": {

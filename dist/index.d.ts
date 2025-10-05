@@ -1,7 +1,7 @@
 import { ReactNode, ComponentType, JSXElementConstructor, ReactElement } from 'react';
 
 type Props = Record<string, any>;
-type Renderable<P extends Props = Props> = ReactNode | Partial<P> | ((Default: ComponentType<P>) => ReactNode) | (() => ReactNode);
+type Renderable<P extends Props = Props, C extends Props = Props> = ReactNode | Partial<P> | ((Default: ComponentType<P>, context: C) => ReactNode) | (() => ReactNode);
 
 /**
  * Used alongside renderable type to enable partial and conditional rendering of
@@ -45,19 +45,21 @@ type Renderable<P extends Props = Props> = ReactNode | Partial<P> | ((Default: C
  */
 type DefaultLike<P extends Record<string, unknown>> = ComponentType<P> | JSXElementConstructor<P> | ReactElement<P> | null | undefined;
 type PropsOfDefault<T> = T extends ComponentType<infer P> ? P : T extends ReactElement<infer P> ? P : T extends JSXElementConstructor<infer P> ? P : Record<string, never>;
-type AllProps<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>> = {
-    bespoke: Renderable<P>;
+type AllProps<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>, C extends Record<string, unknown> = Record<string, unknown>> = {
+    bespoke: Renderable<P, C>;
     default?: D;
+    context?: C;
     wrapper?: (part: ReactNode) => ReactNode;
     options?: {
         wrapNonElementWithDefault?: boolean;
     };
 };
-declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>>(bespoke: Renderable<P>, defNode?: D, wrapper?: (part: ReactNode) => ReactNode, options?: {
+declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>, C extends Record<string, unknown> = Record<string, unknown>>(bespoke: Renderable<P, C>, defNode?: D, context?: C, wrapper?: (part: ReactNode) => ReactNode, options?: {
     wrapNonElementWithDefault?: boolean;
 }): ReactNode;
-declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>>(args: AllProps<D, P>): ReactNode;
-declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>>(bespoke: Renderable<P>, args: Omit<AllProps<D, P>, 'bespoke'>): ReactNode;
-declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>>(bespoke: Renderable<P>, defNode: ReactNode | ComponentType<P>, args: Omit<AllProps<D, P>, 'bespoke' | 'default'>): ReactNode;
+declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>, C extends Record<string, unknown> = Record<string, unknown>>(args: AllProps<D, P, C>): ReactNode;
+declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>, C extends Record<string, unknown> = Record<string, unknown>>(bespoke: Renderable<P, C>, args: Omit<AllProps<D, P, C>, 'bespoke'>): ReactNode;
+declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>, C extends Record<string, unknown> = Record<string, unknown>>(bespoke: Renderable<P, C>, defNode: ReactNode | ComponentType<P>, args: Omit<AllProps<D, P, C>, 'bespoke' | 'default'>): ReactNode;
+declare function renderSlot<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>, C extends Record<string, unknown> = Record<string, unknown>>(bespoke: Renderable<P, C>, defNode: ReactNode | ComponentType<P>, context: C, args: Omit<AllProps<D, P, C>, 'bespoke' | 'default' | 'context'>): ReactNode;
 
 export { type Renderable, renderSlot };

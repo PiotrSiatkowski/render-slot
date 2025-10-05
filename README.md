@@ -35,10 +35,13 @@ npm install render-slot
 ```ts
 renderSlot({
   // The custom rendering input (node, function, object props, true/false etc.)
-  bespoke?: Renderable<P>,
+  bespoke?: Renderable<Props, Context>,
   
   // The default slot implementation
-  default?: ReactNode | ComponentType<P>,
+  default?: ReactNode | ComponentType<Props>,
+  
+  // The default slot implementation
+  context?: Context,
   
   // Optional wrapper applied to final output
   wrapper?: (part: ReactNode) => JSX.Element,
@@ -52,9 +55,10 @@ renderSlot({
 
 **Overloaded signatures:**
 ```ts
-renderSlot(bespoke, { default?, wrapper?, options? })
-renderSlot(bespoke, default, { wrapper?, options? })
-renderSlot(bespoke, default?, wrapper, options?)
+renderSlot(bespoke, { default?, context?, wrapper?, options? })
+renderSlot(bespoke, default, { context?, wrapper?, options? })
+renderSlot(bespoke, default, context, { wrapper?, options? })
+renderSlot(bespoke, default, context, wrapper, options?)
 ```
 
 ---
@@ -64,10 +68,10 @@ renderSlot(bespoke, default?, wrapper, options?)
 The `bespoke` slot prop can be **many different things**:
 
 ```ts
-export type Renderable<P = Record<string, any>> =
+export type Renderable<P = Record<string, any>, C extends Props = Props> =
   | ReactNode                           					// e.g. <span>Hello</span>, true, null
   | Partial<P>                                   			// props for the default component
-  | ((Default: ComponentType<P>) => ReactNode) 				// render prop wtih default
+  | ((Default: ComponentType<P>, context: C) => ReactNode) 	// render prop wtih default and context data
   | (() => ReactNode);  									// render prop without default
 ```
 
@@ -124,13 +128,14 @@ Here, instead of JSX, you pass an **object of props**, and it’s merged into th
 
 ---
 
-### 5. **Render prop (function as child)**
+### 5. **Render prop**
 ```tsx
-<MyComp renderText={(DefaultPart) => <strong><DefaultPart /></strong>} />
+<MyComp renderText={(Default, context) => <strong>{context.someData ? <Default /> : null}</strong>} />
 // → <strong><span>Default text</span></strong>
 ```
 
-Here `DefaultPart` is passed into your function, so you can wrap or extend the default.
+Here `Default` is passed into your function, so you can wrap or extend the default. Variable `context` on the
+other hand, represents every additional data that that is passed to custom renderer by the child component.
 
 ---
 
@@ -139,6 +144,7 @@ Here `DefaultPart` is passed into your function, so you can wrap or extend the d
 renderSlot(
   true,
   () => <span>Default text</span>,
+  { isLoading: true },
   (part) => <li>{part}</li>
 )
 
@@ -176,7 +182,7 @@ The logic for `renderSlot` works like this:
 
 1. `false | null | undefined` → **renders nothing**
 2. `true` → **renders default**
-3. `function` → **renders function(default)**
+3. `function` → **renders function(default, context)**
 4. `props object` → **render default(props)**
 5. primitive (string/number) with `wrapPrimitiveWithDefault` → **render default({children})**
 6. otherwise → **render as-is**
@@ -196,26 +202,28 @@ The logic for `renderSlot` works like this:
 
 ```tsx
 type CardProps = {
-  renderHeader?: Renderable;
-  renderFooter?: Renderable;
+  renderHeader?: Renderable<{ className: string }, { isLoading: boolean }>;
+  renderFooter?: Renderable<{ className: string }>;
 };
 
 function Card({ renderHeader, renderFooter }: CardProps) {
   return (
     <div className="card">
-      {renderSlot(renderHeader, () => <h1>Default Header</h1>)}
+      {renderSlot(renderHeader, ({ className: string }) => 
+      	<h1 className={className}>Default Header</h1>), { isLoading: true }}
       <p>Some content here...</p>
-      {renderSlot(renderFooter, () => <small>Default Footer</small>, (part) => <footer>{part}</footer>)}
+      {renderSlot(renderFooter, ({ className: string }) => 
+      	<small className={className}>Default Footer</small>, (part) => <footer>{part}</footer>)}
     </div>
   );
 }
 
 // Usage
-<Card renderHeader />                         // Uses default header
-<Card renderHeader={<h1>Custom</h1>} />       // Custom JSX
-<Card renderHeader={(H) => <H />} />          // Render prop
-<Card renderFooter={false} />                 // No footer
-<Card renderHeader renderFooter={visible} />  // Header and conditional footer
+<Card renderHeader />                         		// Uses default header
+<Card renderHeader={<h1>Custom</h1>} />       		// Custom JSX
+<Card renderHeader={(H, { isLoading }) => <H />} /> // Render prop
+<Card renderFooter={false} />                 		// No footer
+<Card renderHeader renderFooter={visible} />  		// Header and conditional footer
 ```
 
 ## 📄 License

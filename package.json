@@ -1,6 +1,6 @@
 {
 	"name": "render-slot",
-	"version": "0.1.4",
+	"version": "0.2.0",
 	"description": "renderSlot",
 	"author": "Piotr Siatkowski <p.siatkowski@gmail.com>",
 	"license": "MIT",
@@ -24,6 +24,9 @@
 	},
 	"sideEffects": false,
 	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"files": [
 		"dist/**/*"
 	],
@@ -37,6 +40,7 @@
 	},
 	"scripts": {
 		"build": "jest && tsup src/index.ts --format esm,cjs --dts --clean --sourcemap --minify",
+		"publish": "npm publish --access public",
 		"test": "jest"
 	},
 	"dependencies": {

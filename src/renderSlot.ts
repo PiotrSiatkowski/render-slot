@@ -72,9 +72,14 @@ type PropsOfDefault<T> =
 				? P
 				: Record<string, never>
 
-type AllProps<D extends DefaultLike<any>, P extends Record<string, any> = PropsOfDefault<D>> = {
-	bespoke: Renderable<P>
+type AllProps<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
+> = {
+	bespoke: Renderable<P, C>
 	default?: D
+	context?: C
 	wrapper?: (part: ReactNode) => ReactNode
 	options?: { wrapNonElementWithDefault?: boolean }
 }
@@ -82,9 +87,11 @@ type AllProps<D extends DefaultLike<any>, P extends Record<string, any> = PropsO
 export function renderSlot<
 	D extends DefaultLike<any>,
 	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
 >(
-	bespoke: Renderable<P>,
+	bespoke: Renderable<P, C>,
 	defNode?: D,
+	context?: C,
 	wrapper?: (part: ReactNode) => ReactNode,
 	options?: { wrapNonElementWithDefault?: boolean }
 ): ReactNode
@@ -92,20 +99,34 @@ export function renderSlot<
 export function renderSlot<
 	D extends DefaultLike<any>,
 	P extends Record<string, any> = PropsOfDefault<D>,
->(args: AllProps<D, P>): ReactNode
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(args: AllProps<D, P, C>): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
 	P extends Record<string, any> = PropsOfDefault<D>,
->(bespoke: Renderable<P>, args: Omit<AllProps<D, P>, 'bespoke'>): ReactNode
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(bespoke: Renderable<P, C>, args: Omit<AllProps<D, P, C>, 'bespoke'>): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
 	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
 >(
-	bespoke: Renderable<P>,
+	bespoke: Renderable<P, C>,
 	defNode: ReactNode | ComponentType<P>,
-	args: Omit<AllProps<D, P>, 'bespoke' | 'default'>
+	args: Omit<AllProps<D, P, C>, 'bespoke' | 'default'>
+): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(
+	bespoke: Renderable<P, C>,
+	defNode: ReactNode | ComponentType<P>,
+	context: C,
+	args: Omit<AllProps<D, P, C>, 'bespoke' | 'default' | 'context'>
 ): ReactNode
 
 export function renderSlot(...args: any[]): ReactNode {
@@ -123,14 +144,24 @@ export function renderSlot(...args: any[]): ReactNode {
 			return renderSlotWithObject({
 				bespoke: args[0],
 				default: args[1],
-				...(isFunction(args[2]) ? { wrapper: args[2] } : args[2]),
+				...('context' in args[2] || 'wrapper' in args[2] || 'options' in args[2]
+					? args[2]
+					: { context: args[2] }),
 			})
 		case 4:
 			return renderSlotWithObject({
 				bespoke: args[0],
 				default: args[1],
-				wrapper: args[2],
-				options: args[3],
+				context: args[2],
+				...(isFunction(args[3]) ? { wrapper: args[3] } : args[3]),
+			})
+		case 5:
+			return renderSlotWithObject({
+				bespoke: args[0],
+				default: args[1],
+				context: args[2],
+				wrapper: args[3],
+				options: args[4],
 			})
 	}
 }
@@ -145,6 +176,7 @@ function renderSlotWithObject<
 >({
 	bespoke: bespokePart,
 	default: defaultPart,
+	context: contextPart,
 	wrapper: wrapperPart,
 	options: optionsPart,
 }: AllProps<D>): ReactNode {
@@ -170,16 +202,19 @@ function renderSlotWithObject<
 					? defaultPart
 					: isValidElement(defaultPart)
 						? (props) => cloneElement(defaultPart, props as P)
-						: () => null
+						: () => null,
+				contextPart ?? {}
 			)
 		}
 
 		// Handle additional options.
 		if (wrapNonElementWithDefault && !isObject(bespokePart)) {
+			const props = { children: bespokePart, ...(contextPart ?? {}) } as unknown as P
+
 			return isFunction(defaultPart)
-				? createElement(defaultPart, { children: bespokePart } as unknown as P)
+				? createElement(defaultPart, props)
 				: isValidElement(defaultPart)
-					? cloneElement(defaultPart, { children: bespokePart } as unknown as P)
+					? cloneElement(defaultPart, props)
 					: null
 		}
 

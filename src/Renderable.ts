@@ -1,10 +1,10 @@
-import { ComponentType, JSXElementConstructor, ReactElement, ReactNode } from 'react'
+import { ComponentType, ReactNode } from 'react'
 
 type Props = Record<string, any>
 
 // Your callable form + zero-arg convenience
-export type Renderable<P extends Props = Props> =
+export type Renderable<P extends Props = Props, C extends Props = Props> =
 	| ReactNode
 	| Partial<P>
-	| ((Default: ComponentType<P>) => ReactNode)
+	| ((Default: ComponentType<P>, context: C) => ReactNode)
 	| (() => ReactNode)

@@ -13,6 +13,7 @@ import {
 } from 'react'
 
 import type { Renderable } from './Renderable'
+import { GatewayString } from './useGateway'
 
 /**
  * Used alongside renderable type to enable partial and conditional rendering of
@@ -170,6 +171,10 @@ function isObject(obj: any): obj is object {
 	return isPlainObject(obj)
 }
 
+const REACT_PORTAL_TYPE = Symbol.for('react.portal')
+const isPortal = (x: unknown): x is React.ReactPortal =>
+	!!x && (x as any).$$typeof === REACT_PORTAL_TYPE
+
 function renderSlotWithObject<
 	D extends DefaultLike<any>,
 	P extends Record<string, any> = PropsOfDefault<D>,
@@ -231,6 +236,18 @@ function renderSlotWithObject<
 		return bespokePart as ReactNode
 	}
 
+	const content = renderContent()
+
+	// Return nothing for gateways.
+	if (content === GatewayString) {
+		return null
+	}
+
+	// Don't wrap portals.
+	if (isPortal(content)) {
+		return content
+	}
+
 	// Wrap everything if needed.
-	return wrapperPart ? wrapperPart(renderContent()) : renderContent()
+	return wrapperPart ? wrapperPart(content) : content
 }

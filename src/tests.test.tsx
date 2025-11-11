@@ -1,7 +1,10 @@
 import React, { ReactNode } from 'react'
 import { render } from '@testing-library/react'
+import { createPortal } from 'react-dom'
+
 import { renderSlot } from './renderSlot'
 import { Renderable } from './Renderable'
+import { useGateway } from './useGateway'
 
 function normalizeHTML(html: Element) {
 	return html.innerHTML.replace(/\s+/g, ' ').trim()
@@ -361,6 +364,96 @@ describe('Render Slot', () => {
 		)
 		expect(normalizeHTML(container)).toMatchInlineSnapshot(
 			`"<div><footer><div>20<div>Example</div></div></footer></div>"`
+		)
+	})
+
+	test('Can create slot gateway', () => {
+		function Component({
+			renderText,
+		}: {
+			renderText?: Renderable<{ propA: number }, { propB: number }>
+		}) {
+			return (
+				<div className="Original component div">
+					{renderSlot(
+						renderText,
+						({ propA }) => (
+							<>
+								<div>Example:</div>
+								<div>{propA}</div>
+							</>
+						),
+						{ propB: 20 },
+						(part: ReactNode) => (
+							<footer>{part}</footer>
+						)
+					)}
+				</div>
+			)
+		}
+
+		function Client() {
+			const [Text, renderText] = useGateway<typeof Component, 'renderText'>()
+			return (
+				<div className="Client component">
+					<Text propA={8} />
+					<Component renderText={renderText} />
+				</div>
+			)
+		}
+
+		const { container, rerender } = render(<Client />)
+		rerender(<Client />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div class="Client component"><div>Example:</div><div>8</div><div class="Original component div"></div></div>"`
+		)
+	})
+
+	test('Can use react portal to render slot', () => {
+		function Component({
+			renderText,
+		}: {
+			renderText?: Renderable<{ propA: number }, { propB: number }>
+		}) {
+			return (
+				<div className="Original component div">
+					{renderSlot(
+						renderText,
+						({ propA }) => (
+							<>
+								<div>Example:</div>
+								<div>{propA}</div>
+							</>
+						),
+						{ propB: 20 },
+						(part: ReactNode) => (
+							<footer>{part}</footer>
+						)
+					)}
+				</div>
+			)
+		}
+
+		function Client() {
+			return (
+				<div className="Client component">
+					<div id="slot" />
+					<Component
+						renderText={(Text) => {
+							return createPortal(
+								<Text propA={8} />,
+								document.querySelector('#slot') ?? document.createDocumentFragment()
+							)
+						}}
+					/>
+				</div>
+			)
+		}
+
+		const { container, rerender } = render(<Client />)
+		rerender(<Client />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div class="Client component"><div id="slot"><div>Example:</div><div>8</div></div><div class="Original component div"></div></div>"`
 		)
 	})
 })

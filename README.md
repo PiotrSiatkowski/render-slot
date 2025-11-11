@@ -164,6 +164,38 @@ renderSlot("Hello World", (props) => <span {...props} />, undefined, { wrapNonEl
 
 ---
 
+### 7. **Rendering default implementation outside of the component**
+```tsx
+function Component({ renderText }: { renderText?: Renderable<{ propA: number }> }) {
+	return (
+		<div>
+			{renderSlot(
+				renderText,
+				({ propA }) => (
+					<>
+						<div>Example:</div>
+						<div>{propA}</div>
+					</>
+				),
+				null,
+			)}
+		</div>
+	)
+}
+
+function Client() {
+	const [Text, renderText] = useGateway<typeof Component, 'renderText'>()
+	return (
+		<div className="Client component">
+			<Text propA={8} />
+			<Component renderText={renderText} />
+		</div>
+	)
+}
+```
+
+---
+
 ## 🖼️ Visual Examples
 
 ### Default vs Custom Rendering
@@ -195,6 +227,7 @@ The logic for `renderSlot` works like this:
 - Provide **sensible defaults** (don’t force users to always override).
 - Combine with `wrapper` for lists, layouts, and consistent styles.
 - Use `wrapPrimitiveWithDefault` to accept strings/numbers in text slots.
+- Use Portal within render function or useGateway hook if you want to render component's slot outside.
 
 ---
 

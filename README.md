@@ -1,4 +1,4 @@
-![Zustand Lite Image](./image-small.png)
+![Render Slot Image](./image-small.png)
 
 # 🧠 Render Slot
 

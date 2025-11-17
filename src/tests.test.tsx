@@ -456,4 +456,60 @@ describe('Render Slot', () => {
 			`"<div class="Client component"><div id="slot"><div>Example:</div><div>8</div></div><div class="Original component div"></div></div>"`
 		)
 	})
+
+	test('Can render array', () => {
+		function Component({
+			renderText,
+		}: {
+			renderText?: Renderable<{ propA: number }, { propB: number }>
+		}) {
+			return (
+				<div className="Original component div">
+					{renderSlot(
+						renderText,
+						({ propA }) => (
+							<>
+								<div>Example:</div>
+								<div>{propA}</div>
+							</>
+						),
+						{ propB: 20 },
+						(part: ReactNode) => (
+							<footer>{part}</footer>
+						)
+					)}
+				</div>
+			)
+		}
+
+		function Client() {
+			return (
+				<div className="Client component">
+					<div id="slot" />
+					<Component
+						renderText={[
+							true,
+							(Text) => {
+								return createPortal(
+									<Text propA={8} />,
+									document.querySelector('#slot') ??
+										document.createDocumentFragment()
+								)
+							},
+							{ propA: 30 },
+							false,
+							undefined,
+							<span>Custom</span>
+						]}
+					/>
+				</div>
+			)
+		}
+
+		const { container, rerender } = render(<Client />)
+		rerender(<Client />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div class="Client component"><div id="slot"><div>Example:</div><div>8</div></div><div class="Original component div"><footer><div>Example:</div><div></div></footer><footer><div>Example:</div><div>30</div></footer><footer><span>Custom</span></footer></div></div>"`
+		)
+	})
 })

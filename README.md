@@ -1,3 +1,5 @@
+![Zustand Lite Image](./image-small.png)
+
 # 🧠 Render Slot
 
 [![npm version](https://img.shields.io/npm/v/render-slot?color=blue)](https://www.npmjs.com/package/render-slot)
@@ -72,7 +74,8 @@ export type Renderable<P = Record<string, any>, C extends Props = Props> =
   | ReactNode                           					// e.g. <span>Hello</span>, true, null
   | Partial<P>                                   			// props for the default component
   | ((Default: ComponentType<P>, context: C) => ReactNode) 	// render prop wtih default and context data
-  | (() => ReactNode);  									// render prop without default
+  | (() => ReactNode)  										// render prop without default
+  | Renderable<P, C>[]										// Can render many alterntives sequentially
 ```
 
 ## 🧩 Common Use Cases
@@ -218,6 +221,7 @@ The logic for `renderSlot` works like this:
 4. `props object` → **render default(props)**
 5. primitive (string/number) with `wrapPrimitiveWithDefault` → **render default({children})**
 6. otherwise → **render as-is**
+7. In case array is provided start from point 1 for every element of the array
 
 ---
 

@@ -4,12 +4,13 @@ import isPlainObject from 'lodash.isplainobject'
 
 import {
 	ComponentType,
+	Fragment,
+	JSXElementConstructor,
+	ReactElement,
 	ReactNode,
 	cloneElement,
 	createElement,
 	isValidElement,
-	ReactElement,
-	JSXElementConstructor,
 } from 'react'
 
 import type { Renderable } from './Renderable'
@@ -192,17 +193,17 @@ function renderSlotWithObject<
 		return null
 	}
 
-	const renderContent = (): ReactNode => {
+	const renderContent = (slot: Renderable): ReactNode => {
 		// Render default implementation.
-		if (bespokePart === true) {
+		if (slot === true) {
 			return isFunction(defaultPart)
 				? createElement(defaultPart, {} as P)
 				: ((defaultPart ?? null) as ReactNode)
 		}
 
 		// If a function is passed, render it with the default part.
-		if (isFunction(bespokePart)) {
-			return bespokePart(
+		if (isFunction(slot)) {
+			return slot(
 				isFunction(defaultPart)
 					? defaultPart
 					: isValidElement(defaultPart)
@@ -213,8 +214,8 @@ function renderSlotWithObject<
 		}
 
 		// Handle additional options.
-		if (wrapNonElementWithDefault && !isObject(bespokePart)) {
-			const props = { children: bespokePart, ...(contextPart ?? {}) } as unknown as P
+		if (wrapNonElementWithDefault && !isObject(slot)) {
+			const props = { children: slot, ...(contextPart ?? {}) } as unknown as P
 
 			return isFunction(defaultPart)
 				? createElement(defaultPart, props)
@@ -224,30 +225,44 @@ function renderSlotWithObject<
 		}
 
 		// If an object configuration was passed (defaultPart props).
-		if (isObject(bespokePart) && !isValidElement(bespokePart)) {
+		if (isObject(slot) && !isValidElement(slot)) {
 			return isFunction(defaultPart)
-				? createElement(defaultPart, bespokePart)
+				? createElement(defaultPart, slot)
 				: isValidElement(defaultPart)
-					? cloneElement(defaultPart, bespokePart)
+					? cloneElement(defaultPart, slot)
 					: null
 		}
 
 		// In the case of any different React node, just return the value.
-		return bespokePart as ReactNode
+		return slot as ReactNode
 	}
 
-	const content = renderContent()
+	const renderItem = (slot: Renderable): ReactNode => {
+		const content = renderContent(slot)
 
-	// Return nothing for gateways.
-	if (content === GatewayString) {
-		return null
+		// Return nothing for gateways.
+		if (content === GatewayString) {
+			return null
+		}
+
+		// Don't wrap portals.
+		if (isPortal(content)) {
+			return content
+		}
+
+		// Wrap everything if needed.
+		return wrapperPart ? wrapperPart(content) : content
 	}
 
-	// Don't wrap portals.
-	if (isPortal(content)) {
-		return content
+	if (Array.isArray(bespokePart)) {
+		return createElement(Fragment, {
+			children: bespokePart
+				.filter((item) => !!item)
+				.map((item, index) =>
+					createElement(Fragment, { children: renderItem(item), key: index })
+				),
+		})
+	} else {
+		return renderItem(bespokePart)
 	}
-
-	// Wrap everything if needed.
-	return wrapperPart ? wrapperPart(content) : content
 }

@@ -8,3 +8,4 @@ export type Renderable<P extends Props = Props, C extends Props = Props> =
 	| Partial<P>
 	| ((Default: ComponentType<P>, context: C) => ReactNode)
 	| (() => ReactNode)
+	| Renderable<P, C>[]

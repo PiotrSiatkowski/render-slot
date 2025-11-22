@@ -8,6 +8,7 @@ import {
 	JSXElementConstructor,
 	ReactElement,
 	ReactNode,
+	ReactPortal,
 	cloneElement,
 	createElement,
 	isValidElement,
@@ -20,10 +21,11 @@ import { GatewayString } from './useGateway'
  * Used alongside renderable type to enable partial and conditional rendering of
  * some JSX in a simpler and more conventional manner.
  *
- * @param bespokePart - Specific part to be rendered
- * @param defaultPart - The JSX part that will be rendered if "true" is passed
- * @param wrapperPart - Wrapper that might be used to be used with both bespokePart and defaultPart
- * @param optionsPart - Additional hints on how to render the slot
+ * @param bespoke - Specific part to be rendered
+ * @param default - The JSX part that will be rendered if "true" is passed
+ * @param context - Additional context passed to custom render function
+ * @param wrapper - Wrapper that might be used to be used with both bespokePart and defaultPart
+ * @param options - Additional hints on how to render the slot
  *
  * @example
  * Having component:
@@ -82,7 +84,7 @@ type AllProps<
 	bespoke: Renderable<P, C>
 	default?: D
 	context?: C
-	wrapper?: (part: ReactNode) => ReactNode
+	wrapper?: (part: ReactNode, index?: number) => ReactNode
 	options?: { wrapNonElementWithDefault?: boolean }
 }
 
@@ -94,7 +96,7 @@ export function renderSlot<
 	bespoke: Renderable<P, C>,
 	defNode?: D,
 	context?: C,
-	wrapper?: (part: ReactNode) => ReactNode,
+	wrapper?: (part: ReactNode, index?: number) => ReactNode,
 	options?: { wrapNonElementWithDefault?: boolean }
 ): ReactNode
 
@@ -134,7 +136,9 @@ export function renderSlot<
 export function renderSlot(...args: any[]): ReactNode {
 	switch (args.length) {
 		case 1:
-			return renderSlotWithObject(args[0])
+			return renderSlotWithObject(
+				args[0] && 'bespoke' in args[0] ? args[0] : { bespoke: args[0] }
+			)
 		case 2:
 			return renderSlotWithObject({
 				bespoke: args[0],
@@ -173,7 +177,7 @@ function isObject(obj: any): obj is object {
 }
 
 const REACT_PORTAL_TYPE = Symbol.for('react.portal')
-const isPortal = (x: unknown): x is React.ReactPortal =>
+const isPortal = (x: unknown): x is ReactPortal =>
 	!!x && (x as any).$$typeof === REACT_PORTAL_TYPE
 
 function renderSlotWithObject<
@@ -237,7 +241,7 @@ function renderSlotWithObject<
 		return slot as ReactNode
 	}
 
-	const renderItem = (slot: Renderable): ReactNode => {
+	const renderItem = (slot: Renderable, index: number): ReactNode => {
 		const content = renderContent(slot)
 
 		// Return nothing for gateways.
@@ -251,18 +255,21 @@ function renderSlotWithObject<
 		}
 
 		// Wrap everything if needed.
-		return wrapperPart ? wrapperPart(content) : content
+		return wrapperPart ? wrapperPart(content, index) : content
 	}
 
 	if (Array.isArray(bespokePart)) {
 		return createElement(Fragment, {
 			children: bespokePart
 				.filter((item) => !!item)
-				.map((item, index) =>
-					createElement(Fragment, { children: renderItem(item), key: index })
-				),
+				.map((item, index) => {
+					const rendered = renderItem(item, index)
+					return isValidElement(rendered)
+						? cloneElement(rendered, { key: rendered.key ?? index })
+						: createElement(Fragment, { children: rendered, key: index })
+				}),
 		})
 	} else {
-		return renderItem(bespokePart)
+		return renderItem(bespokePart, 0)
 	}
 }

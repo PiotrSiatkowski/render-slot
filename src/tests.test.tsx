@@ -499,7 +499,7 @@ describe('Render Slot', () => {
 							{ propA: 30 },
 							false,
 							undefined,
-							<span>Custom</span>
+							<span>Custom</span>,
 						]}
 					/>
 				</div>

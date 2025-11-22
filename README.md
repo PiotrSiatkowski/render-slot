@@ -17,6 +17,8 @@ It merges multiple patterns:
 - Slots
 - Template method
 - Default content fallback
+- Conditional rendering
+- Portals
 
 This enables you to build components with flexible APIs **without complicated prop juggling**.
 
@@ -28,7 +30,7 @@ This enables you to build components with flexible APIs **without complicated pr
 npm install render-slot
 ```
 
-*(or copy the `renderSlot.ts` and `Renderable.ts` files into your utils folder)*
+*(or copy the `renderSlot.ts`, `Renderable.ts` and `useGateway.ts` files into your utils folder)*
 
 ---
 
@@ -36,17 +38,17 @@ npm install render-slot
 
 ```ts
 renderSlot({
-  // The custom rendering input (node, function, object props, true/false etc.)
+  // The custom rendering input (ReactNode, Function, Object Props, True/False, Array, Portal etc.)
   bespoke?: Renderable<Props, Context>,
   
   // The default slot implementation
   default?: ReactNode | ComponentType<Props>,
   
-  // The default slot implementation
+  // Additional context passed to custom render function
   context?: Context,
   
-  // Optional wrapper applied to final output
-  wrapper?: (part: ReactNode) => JSX.Element,
+  // Optional wrapper applied to final output (or every element of an array)
+  wrapper?: (part: ReactNode, index?: number) => JSX.Element,
   
   // Auto-wrap primitive bespoke values into default
   options?: {
@@ -57,28 +59,46 @@ renderSlot({
 
 **Overloaded signatures:**
 ```ts
+renderSlot({ bespoke?, default?, context?, wrapper?, options? })
 renderSlot(bespoke, { default?, context?, wrapper?, options? })
 renderSlot(bespoke, default, { context?, wrapper?, options? })
 renderSlot(bespoke, default, context, { wrapper?, options? })
 renderSlot(bespoke, default, context, wrapper, options?)
 ```
 
+Library provides all possible overrides to match your style of programming.
+
 ---
 
-## 🔑 Renderable Types
+## 🔑 Renderable Type
 
-The `bespoke` slot prop can be **many different things**:
+The `bespoke` slot property (what is passed to component that uses renderSlot) can be **many different things**:
 
 ```ts
 export type Renderable<P = Record<string, any>, C extends Props = Props> =
-  | ReactNode                           					// e.g. <span>Hello</span>, true, null
-  | Partial<P>                                   			// props for the default component
-  | ((Default: ComponentType<P>, context: C) => ReactNode) 	// render prop wtih default and context data
-  | (() => ReactNode)  										// render prop without default
-  | Renderable<P, C>[]										// Can render many alterntives sequentially
+  | ReactNode     
+  // custom implementation or condition e.g. <span>Hello</span>, true, null                      					
+  | Partial<P>                      
+  // props for default implementation e.g { propA: 10, propB: 'string' }            			
+  | ((Default: ComponentType<P>, context: C) => ReactNode) 
+  // render prop with default and context data e.g. (Default, context) => <Default propA={context.loading} />
+  | (() => ReactNode)  									
+  // render prop without default e.g. () => <div>Text</div>
+  | Renderable<P, C>[]										
+  // Many alterntives sequentially e.g. [{ propA: 10, propB: 'string' }, <div>Text</div>]
 ```
 
 ## 🧩 Common Use Cases
+
+```tsx
+function Component({ renderText }: { renderText: Renderable }) {
+  return renderSlot(renderText, (props) => <span {...props}>Default text</span>);
+}
+
+function Component({ renderText }: { renderText: Renderable }) {
+  return renderSlot(renderText, <span>Default text</span>);
+}
+```
 
 ### 1. **Boolean flags**
 ```tsx
@@ -98,21 +118,19 @@ export type Renderable<P = Record<string, any>, C extends Props = Props> =
 
 <Component renderText={undefined} />  
 // ✅ Renders nothing
+
+<Component renderText={[]} />  
+// ✅ Renders nothing
 ```
 
 ---
 
 ### 3. **Default part fallback**
 ```tsx
-function Component({ renderText }: { renderText: Renderable }) {
-  return renderSlot(renderText, (props) => <span {...props}>Default text</span>);
-}
-
-function Component({ renderText }: { renderText: Renderable }) {
-  return renderSlot(renderText, <span>Default text</span>);
-}
-
 <Component renderText />  
+// → <span>Default text</span>
+
+<Component renderText={{}} />  
 // → <span>Default text</span>
 
 <Component renderText={{ color: 'red' }} />  
@@ -133,12 +151,12 @@ Here, instead of JSX, you pass an **object of props**, and it’s merged into th
 
 ### 5. **Render prop**
 ```tsx
-<MyComp renderText={(Default, context) => <strong>{context.someData ? <Default /> : null}</strong>} />
+<Component renderText={(Default, context) => <strong>{context.someData ? <Default /> : null}</strong>} />
 // → <strong><span>Default text</span></strong>
 ```
 
 Here `Default` is passed into your function, so you can wrap or extend the default. Variable `context` on the
-other hand, represents every additional data that that is passed to custom renderer by the child component.
+other hand, represents every additional data that is passed to custom renderer by the child component.
 
 ---
 
@@ -170,21 +188,28 @@ renderSlot("Hello World", (props) => <span {...props} />, undefined, { wrapNonEl
 ### 7. **Rendering default implementation outside of the component**
 ```tsx
 function Component({ renderText }: { renderText?: Renderable<{ propA: number }> }) {
+	return renderSlot(
+		renderText,
+		({ propA }) => <div>Example:{propA}</div>,
+	)
+}
+
+function Client() {
 	return (
-		<div>
-			{renderSlot(
-				renderText,
-				({ propA }) => (
-					<>
-						<div>Example:</div>
-						<div>{propA}</div>
-					</>
-				),
-				null,
-			)}
+		<div className="Client component">
+			<div id="slot" />
+			<Component
+				renderText={(Text) => {
+					return createPortal(
+						<Text propA={8} />,
+						document.querySelector('#slot')
+					)
+				}}
+			/>
 		</div>
 	)
 }
+// → <div className="Client component"><div id="slot"><div>Example:8</div></div></div>
 
 function Client() {
 	const [Text, renderText] = useGateway<typeof Component, 'renderText'>()
@@ -195,6 +220,14 @@ function Client() {
 		</div>
 	)
 }
+// → <div className="Client component"><div>Example:8</div></div>
+```
+
+### 8. **Array of various options**
+```tsx
+renderSlot(["Hello World", { propA: 2 }, <span>CutomText</span>])
+
+// → Hello World<div>Example:2</div><span>CutomText</span>
 ```
 
 ---
@@ -231,7 +264,7 @@ The logic for `renderSlot` works like this:
 - Provide **sensible defaults** (don’t force users to always override).
 - Combine with `wrapper` for lists, layouts, and consistent styles.
 - Use `wrapPrimitiveWithDefault` to accept strings/numbers in text slots.
-- Use Portal within render function or useGateway hook if you want to render component's slot outside.
+- Use Portal within render function or useGateway hook if you want to render component's slot outside of it.
 
 ---
 

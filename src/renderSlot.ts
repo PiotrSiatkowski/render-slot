@@ -92,12 +92,41 @@ export function renderSlot<
 	D extends DefaultLike<any>,
 	P extends Record<string, any> = PropsOfDefault<D>,
 	C extends Record<string, unknown> = Record<string, unknown>,
+>(bespoke: Renderable<P, C>): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(bespoke: Renderable<P, C>, defNode: D): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(bespoke: Renderable<P, C>, defNode: D, context: C & { options?: never }): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
 >(
 	bespoke: Renderable<P, C>,
-	defNode?: D,
-	context?: C,
-	wrapper?: (part: ReactNode, index?: number) => ReactNode,
-	options?: { wrapNonElementWithDefault?: boolean }
+	defNode: D,
+	context: C,
+	wrapper: (part: ReactNode, index?: number) => ReactNode
+): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(
+	bespoke: Renderable<P, C>,
+	defNode: D,
+	context: C,
+	wrapper: (part: ReactNode, index?: number) => ReactNode,
+	options: { wrapNonElementWithDefault?: boolean }
 ): ReactNode
 
 export function renderSlot<
@@ -131,6 +160,18 @@ export function renderSlot<
 	defNode: ReactNode | ComponentType<P>,
 	context: C,
 	args: Omit<AllProps<D, P, C>, 'bespoke' | 'default' | 'context'>
+): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends Record<string, any> = PropsOfDefault<D>,
+	C extends Record<string, unknown> = Record<string, unknown>,
+>(
+	bespoke: Renderable<P, C>,
+	defNode: ReactNode | ComponentType<P>,
+	context: C,
+	wrapper: (part: ReactNode, index?: number) => ReactNode,
+	args: Omit<AllProps<D, P, C>, 'bespoke' | 'default' | 'context' | 'wrapper'>
 ): ReactNode
 
 export function renderSlot(...args: any[]): ReactNode {
@@ -177,8 +218,7 @@ function isObject(obj: any): obj is object {
 }
 
 const REACT_PORTAL_TYPE = Symbol.for('react.portal')
-const isPortal = (x: unknown): x is ReactPortal =>
-	!!x && (x as any).$$typeof === REACT_PORTAL_TYPE
+const isPortal = (x: unknown): x is ReactPortal => !!x && (x as any).$$typeof === REACT_PORTAL_TYPE
 
 function renderSlotWithObject<
 	D extends DefaultLike<any>,

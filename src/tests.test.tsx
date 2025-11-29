@@ -314,9 +314,9 @@ describe('Render Slot', () => {
 		function Component({ renderText }: { renderText?: Renderable }) {
 			return (
 				<div>
-					{renderSlot(renderText, <div>Example</div>, undefined, (part: ReactNode) => (
-						<footer>{part}</footer>
-					))}
+					{renderSlot(renderText, <div>Example</div>, {
+						wrapper: (part: ReactNode) => <footer>{part}</footer>,
+					})}
 				</div>
 			)
 		}

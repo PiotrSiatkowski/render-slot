@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react'
-import { render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
+import { hydrateRoot } from 'react-dom/client'
 import { createPortal } from 'react-dom'
 
 import { renderSlot } from './renderSlot'
@@ -118,6 +119,28 @@ describe('Render Slot', () => {
 
 		const { container: container4 } = render(<Component renderText={false} />)
 		expect(normalizeHTML(container4)).toMatchInlineSnapshot(`"<div></div>"`)
+	})
+
+	test('Renders one-argument primitive values', () => {
+		function Component() {
+			return (
+				<div>
+					{renderSlot(true)}
+					{renderSlot('Text')}
+					{renderSlot(1)}
+				</div>
+			)
+		}
+
+		const { container } = render(<Component />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<div>Text1</div>"`)
+	})
+
+	test('Returns null for unsupported argument counts', () => {
+		const callRenderSlot = renderSlot as (...args: unknown[]) => ReactNode
+
+		expect(callRenderSlot()).toBeNull()
+		expect(callRenderSlot(true, null, {}, undefined, {}, 'extra')).toBeNull()
 	})
 
 	test('Renders default values', () => {
@@ -258,6 +281,49 @@ describe('Render Slot', () => {
 		)
 	})
 
+	test('Supports positional options without leaking context into default props', () => {
+		const Default = (props: { children?: ReactNode; 'data-context'?: string }) => (
+			<span {...props} />
+		)
+
+		const { container } = render(
+			<div>
+				{renderSlot(
+					'Custom text',
+					Default,
+					{ 'data-context': 'private' },
+					{ wrapNonElementWithDefault: true }
+				)}
+			</div>
+		)
+
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<div><span>Custom text</span></div>"`)
+	})
+
+	test('Can explicitly pass context into wrapped default props', () => {
+		const Default = (props: { children?: ReactNode; 'data-context'?: string }) => (
+			<span {...props} />
+		)
+
+		const { container } = render(
+			<div>
+				{renderSlot(
+					'Custom text',
+					Default,
+					{ 'data-context': 'public' },
+					{
+						wrapNonElementWithDefault: true,
+						passContextToDefault: true,
+					}
+				)}
+			</div>
+		)
+
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div><span data-context="public">Custom text</span></div>"`
+		)
+	})
+
 	test('Renders default with passed properties', () => {
 		function Component({
 			renderText,
@@ -367,6 +433,31 @@ describe('Render Slot', () => {
 		)
 	})
 
+	test('Treats reserved keys with incompatible config values as context', () => {
+		function Component({
+			renderText,
+		}: {
+			renderText?: Renderable<Record<string, never>, { wrapper: string; options: string }>
+		}) {
+			return renderSlot(renderText, () => null, {
+				wrapper: 'tooltip',
+				options: 'metadata',
+			})
+		}
+
+		const { container } = render(
+			<Component
+				renderText={(_Default, context) => (
+					<span>
+						{context.wrapper}:{context.options}
+					</span>
+				)}
+			/>
+		)
+
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<span>tooltip:metadata</span>"`)
+	})
+
 	test('Can create slot gateway', () => {
 		function Component({
 			renderText,
@@ -402,11 +493,69 @@ describe('Render Slot', () => {
 			)
 		}
 
-		const { container, rerender } = render(<Client />)
-		rerender(<Client />)
+		const { container } = render(<Client />)
 		expect(normalizeHTML(container)).toMatchInlineSnapshot(
 			`"<div class="Client component"><div>Example:</div><div>8</div><div class="Original component div"></div></div>"`
 		)
+	})
+
+	test('Updates multiple gateway instances and reconnects after remounting', () => {
+		function Component({ renderText }: { renderText?: Renderable<{ value: number }> }) {
+			return renderSlot(renderText, ({ value }) => <span>{value}</span>)
+		}
+
+		function Client({ count }: { count: number }) {
+			const [Text, renderText] = useGateway<typeof Component, 'renderText'>()
+			return (
+				<div>
+					{Array.from({ length: count }, (_, index) => (
+						<Text key={index} value={index + 1} />
+					))}
+					<Component renderText={renderText} />
+				</div>
+			)
+		}
+
+		const { container, rerender } = render(<Client count={2} />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<div><span>1</span><span>2</span></div>"`)
+
+		rerender(<Client count={0} />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<div></div>"`)
+
+		rerender(<Client count={1} />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<div><span>1</span></div>"`)
+	})
+
+	test('Can conditionally render a gateway without changing hook order', () => {
+		function Component({
+			renderText,
+			show,
+		}: {
+			renderText?: Renderable<{ value: number }>
+			show: boolean
+		}) {
+			React.useState(0)
+			return (
+				<div>
+					{show ? renderSlot(renderText, ({ value }) => <span>{value}</span>) : null}
+				</div>
+			)
+		}
+
+		function Client({ show }: { show: boolean }) {
+			const [Text, renderText] = useGateway<typeof Component, 'renderText'>()
+			return (
+				<>
+					<Text value={8} />
+					<Component renderText={renderText} show={show} />
+				</>
+			)
+		}
+
+		const { container, rerender } = render(<Client show={false} />)
+		rerender(<Client show />)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<span>8</span><div></div>"`)
+		expect(() => rerender(<Client show={false} />)).not.toThrow()
 	})
 
 	test('Can use react portal to render slot', () => {
@@ -511,5 +660,171 @@ describe('Render Slot', () => {
 		expect(normalizeHTML(container)).toMatchInlineSnapshot(
 			`"<div class="Client component"><div id="slot"><div>Example:</div><div>8</div></div><div class="Original component div"><footer><div>Example:</div><div></div></footer><footer><div>Example:</div><div>30</div></footer><footer><span>Custom</span></footer></div></div>"`
 		)
+	})
+
+	test('Preserves renderable falsy values in arrays', () => {
+		const { container } = render(
+			<div>
+				{renderSlot(
+					[0, '', Number.NaN, false, null, undefined],
+					undefined,
+					{},
+					(part) => <span>{String(part)}</span>
+				)}
+			</div>
+		)
+
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div><span>0</span><span></span><span>NaN</span></div>"`
+		)
+	})
+
+	test('Renders class component defaults', () => {
+		class Default extends React.Component<{ label?: string }> {
+			render() {
+				return <span>{this.props.label ?? 'Default'}</span>
+			}
+		}
+
+		function Component({ renderText }: { renderText?: Renderable<{ label?: string }> }) {
+			return <div>{renderSlot(renderText, Default)}</div>
+		}
+
+		const { container } = render(
+			<>
+				<Component renderText />
+				<Component renderText={{ label: 'Custom' }} />
+			</>
+		)
+
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div><span>Default</span></div><div><span>Custom</span></div>"`
+		)
+	})
+
+	test('Updates a gateway whose hook-using default changes in source state', () => {
+		function Component({ renderText }: { renderText?: Renderable<{ prefix: string }> }) {
+			const [label, setLabel] = React.useState('First')
+
+			function Default({ prefix }: { prefix: string }) {
+				const [suffix] = React.useState('!')
+				return <span>{`${prefix}:${label}${suffix}`}</span>
+			}
+
+			return (
+				<>
+					<button onClick={() => setLabel('Second')}>Change</button>
+					{renderSlot(renderText, Default)}
+				</>
+			)
+		}
+
+		function Client() {
+			const [Text, renderText] = useGateway<typeof Component, 'renderText'>()
+			return (
+				<>
+					<Text prefix="Value" />
+					<Component renderText={renderText} />
+				</>
+			)
+		}
+
+		const { container, getByRole } = render(
+			<React.StrictMode>
+				<Client />
+			</React.StrictMode>
+		)
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<span>Value:First!</span><button>Change</button>"`
+		)
+
+		fireEvent.click(getByRole('button', { name: 'Change' }))
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<span>Value:Second!</span><button>Change</button>"`
+		)
+	})
+
+	test('Provides an empty context object when context is omitted', () => {
+		const renderOverride = jest.fn((_Default, context) => (
+			<span>{Object.keys(context).length}</span>
+		))
+
+		const { container } = render(
+			<div>{renderSlot(renderOverride, () => <span>Default</span>)}</div>
+		)
+
+		expect(renderOverride).toHaveBeenCalledWith(expect.any(Function), {})
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(`"<div><span>0</span></div>"`)
+	})
+
+	test('Uses compact wrapper indexes after filtering empty array entries', () => {
+		const { container } = render(
+			<div>
+				{renderSlot(
+					[false, 'First', null, undefined, 'Second'],
+					undefined,
+					{},
+					(part, index) => (
+						<span>
+							{index}:{part}
+						</span>
+					)
+				)}
+			</div>
+		)
+
+		expect(normalizeHTML(container)).toMatchInlineSnapshot(
+			`"<div><span>0:First</span><span>1:Second</span></div>"`
+		)
+	})
+
+	test('Hydrates an initial gateway default without a markup mismatch', async () => {
+		function InitialDefault({ value }: { value: number }) {
+			return <span>Initial:{value}</span>
+		}
+
+		function Source({ renderText }: { renderText?: Renderable<{ value: number }> }) {
+			return (
+				<section>
+					{renderSlot(renderText, ({ value }) => (
+						<span>Source:{value}</span>
+					))}
+				</section>
+			)
+		}
+
+		function App() {
+			const [Text, renderText] = useGateway<typeof Source, 'renderText'>({
+				initialDefault: InitialDefault,
+			})
+
+			return (
+				<div>
+					<Text value={8} />
+					<Source renderText={renderText} />
+				</div>
+			)
+		}
+
+		const container = document.createElement('div')
+		container.innerHTML = '<div><span>Initial:<!-- -->8</span><section></section></div>'
+		const consoleError = jest.spyOn(console, 'error').mockImplementation()
+		let root: ReturnType<typeof hydrateRoot> | undefined
+
+		try {
+			await act(async () => {
+				root = hydrateRoot(container, <App />)
+			})
+
+			expect(consoleError).not.toHaveBeenCalled()
+			expect(normalizeHTML(container)).toMatchInlineSnapshot(
+				`"<div><span>Source:8</span><section></section></div>"`
+			)
+		} finally {
+			await act(async () => {
+				root?.unmount()
+			})
+			consoleError.mockRestore()
+		}
 	})
 })

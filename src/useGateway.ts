@@ -1,71 +1,93 @@
 import {
-	ComponentProps,
 	ComponentType,
 	Dispatch,
 	SetStateAction,
-	cloneElement,
+	createElement,
 	isValidElement,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from 'react'
 
-import isFunction from 'lodash.isfunction'
 import { Renderable } from './Renderable'
 
-type UnwrapRenderableP<T> = [NonNullable<T>] extends [Renderable<infer P, any>] ? P : never
-type UnwrapRenderableC<T> = [NonNullable<T>] extends [Renderable<any, infer C>] ? C : never
+type PropsOfComponents<T> = T extends ComponentType<infer P> ? P : never
+type UnwrapRenderableP<T> = NonNullable<T> extends Renderable<infer P, infer _> ? P : never
+type UnwrapRenderableC<T> = NonNullable<T> extends Renderable<infer _, infer C> ? C : never
 
-export const GatewayString = '__e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+type GatewayCaptureProps<D> = {
+	defNode: D
+	onDefault: (defNode: D) => void
+}
+
+export type GatewayOptions<P extends object> = {
+	initialDefault?: ComponentType<P>
+}
+
+function GatewayCapture<D>({ defNode, onDefault }: GatewayCaptureProps<D>) {
+	useIsomorphicLayoutEffect(() => {
+		onDefault(defNode)
+	}, [defNode, onDefault])
+
+	return null
+}
+
+export function isGatewayElement(node: unknown): boolean {
+	return isValidElement(node) && node.type === GatewayCapture
+}
 
 export function useGateway<
-	Comp extends ComponentType,
-	K extends keyof ComponentProps<Comp>,
->(): readonly [
-	ComponentType<UnwrapRenderableP<ComponentProps<Comp>[K]>>,
+	Comp,
+	K extends keyof PropsOfComponents<Comp>,
+>({
+	initialDefault,
+}: GatewayOptions<UnwrapRenderableP<PropsOfComponents<Comp>[K]>> = {}): readonly [
+	ComponentType<UnwrapRenderableP<PropsOfComponents<Comp>[K]>>,
 	Renderable<
-		UnwrapRenderableP<ComponentProps<Comp>[K]>,
-		UnwrapRenderableC<ComponentProps<Comp>[K]>
+		UnwrapRenderableP<PropsOfComponents<Comp>[K]>,
+		UnwrapRenderableC<PropsOfComponents<Comp>[K]>
 	>,
 ] {
-	type P = UnwrapRenderableP<NonNullable<ComponentProps<Comp>[K]>>
-	type C = UnwrapRenderableC<NonNullable<ComponentProps<Comp>[K]>>
+	type P = UnwrapRenderableP<NonNullable<PropsOfComponents<Comp>[K]>>
 	type D = NonNullable<ComponentType<P>>
 
-	const setter = useRef<Dispatch<SetStateAction<[D]>>>(null)
-	const custom = useRef<D>(null)
+	const setters = useRef(new Set<Dispatch<SetStateAction<[D]>>>())
+	const current = useRef<D>(initialDefault ?? null)
+
+	const onDefault = useCallback((defNode: D) => {
+		current.current = defNode
+		setters.current.forEach((setter) => {
+			setter((current) => (current[0] === defNode ? current : [defNode]))
+		})
+	}, [])
 
 	return [
 		useCallback((props: P) => {
-			const [[Default], setDefault] = useState<[D]>([() => null])
+			const [[Default], setDefault] = useState<[D]>(() => [
+				current.current ?? ((() => null) as D),
+			])
 
-			useEffect(() => {
-				if (setter.current) {
-					if (custom.current) {
-						setDefault([custom.current])
-					}
-				} else {
-					setter.current = setDefault
+			useIsomorphicLayoutEffect(() => {
+				setters.current.add(setDefault)
+
+				if (current.current) {
+					setDefault([current.current])
+				}
+
+				return () => {
+					setters.current.delete(setDefault)
 				}
 			}, [])
 
-			return isFunction(Default)
-				? Default(props)
-				: isValidElement(Default)
-					? cloneElement(Default, props)
-					: null
+			return createElement(Default, props)
 		}, []),
-		useCallback((defNode: D, context: C) => {
-			useEffect(() => {
-				if (setter.current) {
-					setter.current([defNode])
-				} else {
-					custom.current = defNode
-				}
-			})
-
-			return GatewayString
-		}, []),
+		useCallback(
+			(defNode: D) => createElement(GatewayCapture<D>, { defNode, onDefault }),
+			[onDefault]
+		),
 	]
 }

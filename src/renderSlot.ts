@@ -1,7 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import isFunction from 'lodash.isfunction'
-import isPlainObject from 'lodash.isplainobject'
-
 import {
 	ComponentType,
 	Fragment,
@@ -15,7 +12,8 @@ import {
 } from 'react'
 
 import type { Renderable } from './Renderable'
-import { GatewayString } from './useGateway'
+import { isGatewayElement } from './useGateway'
+import { isFunction, isPlainObject } from './utils'
 
 /**
  * Used alongside renderable type to enable partial and conditional rendering of
@@ -60,7 +58,7 @@ import { GatewayString } from './useGateway'
  */
 
 // Accept functional component, class component, or element instance
-export type DefaultLike<P extends Record<string, unknown>> =
+export type DefaultLike<P extends object> =
 	| ComponentType<P>
 	| JSXElementConstructor<P>
 	| ReactElement<P>
@@ -76,40 +74,56 @@ type PropsOfDefault<T> =
 				? P
 				: Record<string, never>
 
+type RenderSlotOptions = {
+	wrapNonElementWithDefault?: boolean
+	passContextToDefault?: boolean
+}
+
 type AllProps<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 > = {
 	bespoke: Renderable<P, C>
 	default?: D
 	context?: C
 	wrapper?: (part: ReactNode, index?: number) => ReactNode
-	options?: { wrapNonElementWithDefault?: boolean }
+	options?: RenderSlotOptions
 }
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(bespoke: Renderable<P, C>): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(bespoke: Renderable<P, C>, defNode: D): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
->(bespoke: Renderable<P, C>, defNode: D, context: C & { options?: never }): ReactNode
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
+>(bespoke: Renderable<P, C>, defNode: D, context: C): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
+>(
+	bespoke: Renderable<P, C>,
+	defNode: D,
+	context: C | undefined,
+	options: RenderSlotOptions
+): ReactNode
+
+export function renderSlot<
+	D extends DefaultLike<any>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(
 	bespoke: Renderable<P, C>,
 	defNode: D,
@@ -119,32 +133,32 @@ export function renderSlot<
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(
 	bespoke: Renderable<P, C>,
 	defNode: D,
 	context: C,
 	wrapper: (part: ReactNode, index?: number) => ReactNode,
-	options: { wrapNonElementWithDefault?: boolean }
+	options: RenderSlotOptions
 ): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(args: AllProps<D, P, C>): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(bespoke: Renderable<P, C>, args: Omit<AllProps<D, P, C>, 'bespoke'>): ReactNode
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(
 	bespoke: Renderable<P, C>,
 	defNode: ReactNode | ComponentType<P>,
@@ -153,8 +167,8 @@ export function renderSlot<
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(
 	bespoke: Renderable<P, C>,
 	defNode: ReactNode | ComponentType<P>,
@@ -164,8 +178,8 @@ export function renderSlot<
 
 export function renderSlot<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
-	C extends Record<string, unknown> = Record<string, unknown>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >(
 	bespoke: Renderable<P, C>,
 	defNode: ReactNode | ComponentType<P>,
@@ -178,12 +192,12 @@ export function renderSlot(...args: any[]): ReactNode {
 	switch (args.length) {
 		case 1:
 			return renderSlotWithObject(
-				args[0] && 'bespoke' in args[0] ? args[0] : { bespoke: args[0] }
+				isPlainObject(args[0]) && 'bespoke' in args[0] ? args[0] : { bespoke: args[0] }
 			)
 		case 2:
 			return renderSlotWithObject({
 				bespoke: args[0],
-				...(isPlainObject(args[1]) && !isValidElement(args[1])
+				...(isSlotConfig(args[1], ['default', 'context', 'wrapper', 'options'])
 					? args[1]
 					: { default: args[1] }),
 			})
@@ -191,7 +205,7 @@ export function renderSlot(...args: any[]): ReactNode {
 			return renderSlotWithObject({
 				bespoke: args[0],
 				default: args[1],
-				...('context' in args[2] || 'wrapper' in args[2] || 'options' in args[2]
+				...(isSlotConfig(args[2], ['context', 'wrapper', 'options'])
 					? args[2]
 					: { context: args[2] }),
 			})
@@ -200,7 +214,11 @@ export function renderSlot(...args: any[]): ReactNode {
 				bespoke: args[0],
 				default: args[1],
 				context: args[2],
-				...(isFunction(args[3]) ? { wrapper: args[3] } : args[3]),
+				...(isFunction(args[3])
+					? { wrapper: args[3] }
+					: isRenderSlotOptions(args[3])
+						? { options: args[3] }
+						: args[3]),
 			})
 		case 5:
 			return renderSlotWithObject({
@@ -210,11 +228,9 @@ export function renderSlot(...args: any[]): ReactNode {
 				wrapper: args[3],
 				options: args[4],
 			})
+		default:
+			return null
 	}
-}
-
-function isObject(obj: any): obj is object {
-	return isPlainObject(obj)
 }
 
 const REACT_PORTAL_TYPE = Symbol.for('react.portal')
@@ -222,22 +238,23 @@ const isPortal = (x: unknown): x is ReactPortal => !!x && (x as any).$$typeof ==
 
 function renderSlotWithObject<
 	D extends DefaultLike<any>,
-	P extends Record<string, any> = PropsOfDefault<D>,
+	P extends object = PropsOfDefault<D>,
+	C extends object = Record<string, unknown>,
 >({
 	bespoke: bespokePart,
 	default: defaultPart,
 	context: contextPart,
 	wrapper: wrapperPart,
 	options: optionsPart,
-}: AllProps<D>): ReactNode {
-	const { wrapNonElementWithDefault } = optionsPart ?? {}
+}: AllProps<D, P, C>): ReactNode {
+	const { wrapNonElementWithDefault, passContextToDefault } = optionsPart ?? {}
 
 	// Don't render part at all in those three cases.
 	if (bespokePart === undefined || bespokePart === false || bespokePart === null) {
 		return null
 	}
 
-	const renderContent = (slot: Renderable): ReactNode => {
+	const renderContent = (slot: Renderable<P, C>): ReactNode => {
 		// Render default implementation.
 		if (slot === true) {
 			return isFunction(defaultPart)
@@ -253,13 +270,16 @@ function renderSlotWithObject<
 					: isValidElement(defaultPart)
 						? (props) => cloneElement(defaultPart, props as P)
 						: () => null,
-				contextPart ?? {}
+				contextPart ?? ({} as C)
 			)
 		}
 
 		// Handle additional options.
 		if (wrapNonElementWithDefault && !isObject(slot)) {
-			const props = { children: slot, ...(contextPart ?? {}) } as unknown as P
+			const props = {
+				children: slot,
+				...(passContextToDefault ? (contextPart ?? {}) : {}),
+			} as unknown as P
 
 			return isFunction(defaultPart)
 				? createElement(defaultPart, props)
@@ -281,12 +301,12 @@ function renderSlotWithObject<
 		return slot as ReactNode
 	}
 
-	const renderItem = (slot: Renderable, index: number): ReactNode => {
+	const renderItem = (slot: Renderable<P, C>, index: number): ReactNode => {
 		const content = renderContent(slot)
 
-		// Return nothing for gateways.
-		if (content === GatewayString) {
-			return null
+		// Mount gateway capture components without applying the slot wrapper.
+		if (isGatewayElement(content)) {
+			return content
 		}
 
 		// Don't wrap portals.
@@ -301,7 +321,7 @@ function renderSlotWithObject<
 	if (Array.isArray(bespokePart)) {
 		return createElement(Fragment, {
 			children: bespokePart
-				.filter((item) => !!item)
+				.filter((item) => item !== false && item !== null && item !== undefined)
 				.map((item, index) => {
 					const rendered = renderItem(item, index)
 					return isValidElement(rendered)
@@ -312,4 +332,52 @@ function renderSlotWithObject<
 	} else {
 		return renderItem(bespokePart, 0)
 	}
+}
+
+function isObject(obj: any): obj is object {
+	return isPlainObject(obj)
+}
+
+function isSlotConfig(value: unknown, allowedKeys: string[]): boolean {
+	if (!isPlainObject(value) || isValidElement(value)) {
+		return false
+	}
+
+	const config = value as Record<string, unknown>
+	const keys = Object.keys(config)
+
+	if (!keys.every((key) => allowedKeys.includes(key))) {
+		return false
+	}
+
+	if ('wrapper' in config && config.wrapper !== undefined && !isFunction(config.wrapper)) {
+		return false
+	}
+
+	if (
+		'options' in config &&
+		config.options !== undefined &&
+		!isRenderSlotOptions(config.options)
+	) {
+		return false
+	}
+
+	return true
+}
+
+function isRenderSlotOptions(value: unknown): value is RenderSlotOptions {
+	if (!isPlainObject(value)) {
+		return false
+	}
+
+	const options = value as Record<string, unknown>
+	return (
+		Object.keys(options).every(
+			(key) => key === 'wrapNonElementWithDefault' || key === 'passContextToDefault'
+		) &&
+		(options.wrapNonElementWithDefault === undefined ||
+			typeof options.wrapNonElementWithDefault === 'boolean') &&
+		(options.passContextToDefault === undefined ||
+			typeof options.passContextToDefault === 'boolean')
+	)
 }

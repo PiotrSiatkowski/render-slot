@@ -52,7 +52,9 @@ renderSlot({
   
   // Auto-wrap primitive bespoke values into default
   options?: {
-    wrapNonElementWithDefault?: boolean
+    wrapNonElementWithDefault?: boolean,
+    // Also merge context into the wrapped default's props
+    passContextToDefault?: boolean
   }
 }): ReactNode
 ```
@@ -66,7 +68,20 @@ renderSlot(bespoke, default, context, { wrapper?, options? })
 renderSlot(bespoke, default, context, wrapper, options?)
 ```
 
-Library provides all possible overrides to match your style of programming.
+The positional forms are intended for concise everyday use. In the three-argument form, a
+plain object shaped like `{ context?, wrapper?, options? }` is interpreted as configuration.
+If context data itself uses one of those reserved keys with a configuration-compatible value,
+use the explicit object form:
+
+```tsx
+renderSlot({
+  bespoke: renderText,
+  default: DefaultText,
+  context: { wrapper: formatValue },
+})
+```
+
+This keeps common calls short while providing an unambiguous form for the rare key collision.
 
 ---
 
@@ -75,7 +90,10 @@ Library provides all possible overrides to match your style of programming.
 The `bespoke` slot property (what is passed to component that uses renderSlot) can be **many different things**:
 
 ```ts
-export type Renderable<P = Record<string, any>, C extends Props = Props> =
+export type Renderable<
+  P extends object = Record<string, unknown>,
+  C extends object = Record<string, unknown>,
+> =
   | ReactNode     
   // custom implementation or condition e.g. <span>Hello</span>, true, null                      					
   | Partial<P>                      
@@ -85,7 +103,7 @@ export type Renderable<P = Record<string, any>, C extends Props = Props> =
   | (() => ReactNode)  									
   // render prop without default e.g. () => <div>Text</div>
   | Renderable<P, C>[]										
-  // Many alterntives sequentially e.g. [{ propA: 10, propB: 'string' }, <div>Text</div>]
+  // Many alternatives sequentially e.g. [{ propA: 10, propB: 'string' }, <div>Text</div>]
 ```
 
 ## 🧩 Common Use Cases
@@ -111,7 +129,7 @@ function Component({ renderText }: { renderText: Renderable }) {
 
 ---
 
-### 2. **Nill values**
+### 2. **Nil values**
 ```tsx
 <Component renderText={null} />  
 // ✅ Renders nothing
@@ -181,11 +199,20 @@ Wrappers are great for list items, tooltips, or other consistent containers.
 renderSlot("Hello World", (props) => <span {...props} />, undefined, { wrapNonElementWithDefault: true })
 
 // → <span>Hello World</span>
+
+renderSlot(
+  "Hello World",
+  (props) => <span {...props} />,
+  { className: "highlight" },
+  { wrapNonElementWithDefault: true, passContextToDefault: true }
+)
+
+// → <span className="highlight">Hello World</span>
 ```
 
 ---
 
-### 7. **Rendering default implementation outside of the component**
+### 8. **Rendering default implementation outside of the component**
 ```tsx
 function Component({ renderText }: { renderText?: Renderable<{ propA: number }> }) {
 	return renderSlot(
@@ -223,11 +250,33 @@ function Client() {
 // → <div className="Client component"><div>Example:8</div></div>
 ```
 
-### 8. **Array of various options**
-```tsx
-renderSlot(["Hello World", { propA: 2 }, <span>CutomText</span>])
+For SSR, provide an initial default so `<Text />` can render before the source component is
+reached during the server render:
 
-// → Hello World<div>Example:2</div><span>CutomText</span>
+```tsx
+const [Text, renderText] = useGateway<typeof Component, 'renderText'>({
+	initialDefault: ({ propA }) => <div>Example:{propA}</div>,
+})
+```
+
+After hydration, the gateway synchronizes with the source component's current default.
+Keep `initialDefault` visually equivalent to that source default; otherwise the gateway may
+visibly change when hydration completes.
+
+#### Gateway lifecycle
+
+- When a source component unmounts, mounted `<Text />` targets retain the most recently
+  captured default.
+- A newly mounted source using the same gateway replaces that retained default.
+- If multiple sources share one gateway, the most recently committed source wins. Prefer one
+  source per gateway when deterministic ownership matters.
+- Unmounting the component that owns `useGateway` releases the gateway and all of its state.
+
+### 9. **Array of various options**
+```tsx
+renderSlot(["Hello World", { propA: 2 }, <span>CustomText</span>])
+
+// → Hello World<div>Example:2</div><span>CustomText</span>
 ```
 
 ---
@@ -252,7 +301,7 @@ The logic for `renderSlot` works like this:
 2. `true` → **renders default**
 3. `function` → **renders function(default, context)**
 4. `props object` → **render default(props)**
-5. primitive (string/number) with `wrapPrimitiveWithDefault` → **render default({children})**
+5. primitive (string/number) with `wrapNonElementWithDefault` → **render default({children})**
 6. otherwise → **render as-is**
 7. In case array is provided start from point 1 for every element of the array
 
@@ -263,7 +312,7 @@ The logic for `renderSlot` works like this:
 - **Use `renderSlot` in component APIs** to make them flexible without dozens of props.
 - Provide **sensible defaults** (don’t force users to always override).
 - Combine with `wrapper` for lists, layouts, and consistent styles.
-- Use `wrapPrimitiveWithDefault` to accept strings/numbers in text slots.
+- Use `wrapNonElementWithDefault` to accept strings/numbers in text slots.
 - Use Portal within render function or useGateway hook if you want to render component's slot outside of it.
 
 ---
@@ -279,11 +328,13 @@ type CardProps = {
 function Card({ renderHeader, renderFooter }: CardProps) {
   return (
     <div className="card">
-      {renderSlot(renderHeader, ({ className: string }) => 
-      	<h1 className={className}>Default Header</h1>), { isLoading: true }}
+      {renderSlot(renderHeader, ({ className }: { className: string }) =>
+      	<h1 className={className}>Default Header</h1>, { isLoading: true })}
       <p>Some content here...</p>
-      {renderSlot(renderFooter, ({ className: string }) => 
-      	<small className={className}>Default Footer</small>, (part) => <footer>{part}</footer>)}
+      {renderSlot(renderFooter, ({ className }: { className: string }) =>
+      	<small className={className}>Default Footer</small>, {
+          wrapper: (part) => <footer>{part}</footer>,
+        })}
     </div>
   );
 }
